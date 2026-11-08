@@ -443,25 +443,8 @@
     return {name: k.label.t, value: k.label.v, color: k.color};
   });
 
-  function makeArrows(coords, color, step){
-    var out = [];
-    for (var i = 1; i < coords.length; i += step){
-      var a = coords[i-1], b = coords[i];
-      if (a[0] === b[0] && a[1] === b[1]) continue;
-      var mLng = (a[0] + b[0]) / 2, mLat = (a[1] + b[1]) / 2;
-      var rot = Math.atan2((b[0]-a[0]) * Math.cos(mLat * Math.PI / 180), (b[1]-a[1]) * 0.75) * 180 / Math.PI;
-      out.push({ value: [mLng, mLat], symbolRotate: rot, itemStyle: { color: color } });
-    }
-    return out;
-  }
-
   var RED_DIR = [];
-  [[CENTRAL,C_CENTRAL,3],[ER,C_ER,3],[SI,C_SI,2],[ARMY25,C_25,2],[SIX,C_SIX,2],[TEN,C_TEN,2]].forEach(function(r){
-    RED_DIR = RED_DIR.concat(makeArrows(r[0], r[1], r[2]));
-  });
-
   var KMT_DIR = [];
-  KMT.forEach(function(k){ KMT_DIR = KMT_DIR.concat(makeArrows(k.coords, k.color, 2)); });
 
   var EVENTS = [
     {n:'瑞金出发', v:[116.03,25.89], d:'1934.10.10', t:'m', a:'中央红军', L:1, p:'left',
@@ -870,7 +853,7 @@
         shadowBlur: 0,
         shadowColor: color
       },
-      effect: { show:true, period:period, trailLength:0.18, symbol:'arrow', symbolSize:4.5, color:color },
+      effect: { show:false },
       data: [{ coords: coords, kind:'red', color:color, name:name,
         start:info.start, end:info.end, dates:info.dates, history:info.history }],
       emphasis: { lineStyle: { width: width + 1.4 } }
@@ -936,7 +919,7 @@
       zlevel: 2,
       silent: false,
       lineStyle: { color: k.color, width: 1.9, opacity: 0.85, type: [7,5] },
-      effect: { show: true, period: 8, trailLength: 0, symbol: 'arrow', symbolSize: 5, color: k.color },
+      effect: { show:false },
       data: [{ coords: k.coords, kind:'kmt', name: k.name, desc: k.desc, color: k.color,
         faction: info.faction, start: info.start, end: info.end, dates: info.dates, history: info.history }],
       emphasis: { lineStyle: { width: 2.8, opacity: 1 } }
@@ -1058,25 +1041,27 @@
         labelLayout: { hideOverlap: false, moveOverlap: 'shiftY' }
       },
       {
+        id: 'redArrows',
         name: '红军行军方向',
         type: 'scatter',
         coordinateSystem: 'geo',
         zlevel: 4,
         silent: true,
         symbol: 'arrow',
-        symbolSize: 8,
-        itemStyle: { opacity: 0.95, borderColor: 'rgba(255,255,255,.9)', borderWidth: 0.8 },
+        symbolSize: 7.5,
+        itemStyle: { opacity: 0.9, borderColor: 'rgba(255,255,255,.9)', borderWidth: 0.8 },
         data: RED_DIR
       },
       {
+        id: 'kmtArrows',
         name: '国军行进方向',
         type: 'scatter',
         coordinateSystem: 'geo',
         zlevel: 2,
         silent: true,
         symbol: 'arrow',
-        symbolSize: 7,
-        itemStyle: { opacity: 0.9 },
+        symbolSize: 6.5,
+        itemStyle: { opacity: 0.85 },
         data: KMT_DIR
       },
       {
@@ -1171,6 +1156,43 @@
   };
 
   chart.setOption(option);
+
+  function buildDirArrows(){
+    function make(coords, color, spacing){
+      var out = [];
+      var acc = spacing;
+      for (var i = 1; i < coords.length; i++){
+        var a = coords[i-1], b = coords[i];
+        if (a[0] === b[0] && a[1] === b[1]) continue;
+        var p1 = chart.convertToPixel({ geoIndex: 0 }, a);
+        var p2 = chart.convertToPixel({ geoIndex: 0 }, b);
+        if (!p1 || !p2) continue;
+        var dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+        var len = Math.sqrt(dx*dx + dy*dy);
+        if (len < 0.5) continue;
+        acc += len;
+        if (acc < spacing) continue;
+        acc = 0;
+        out.push({
+          value: [(a[0]+b[0])/2, (a[1]+b[1])/2],
+          symbolRotate: Math.atan2(-dx, -dy) * 180 / Math.PI,
+          itemStyle: { color: color }
+        });
+      }
+      return out;
+    }
+    var red = [];
+    [[CENTRAL,C_CENTRAL],[ER,C_ER],[SI,C_SI],[ARMY25,C_25],[SIX,C_SIX],[TEN,C_TEN]].forEach(function(r){
+      red = red.concat(make(r[0], r[1], 120));
+    });
+    var kmt = [];
+    KMT.forEach(function(k){ kmt = kmt.concat(make(k.coords, k.color, 150)); });
+    chart.setOption({ series: [
+      { id:'redArrows', data: red },
+      { id:'kmtArrows', data: kmt }
+    ]});
+  }
+  buildDirArrows();
 
   var EVT_IDX = 6 + KMT.length;
 
